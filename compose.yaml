@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - 5432:5432
+  chartdb:
+    image: m0as/chartdb
+    ports:
+      - 4444:80
+    environment:
+      - DISABLE_ANALYTICS=true

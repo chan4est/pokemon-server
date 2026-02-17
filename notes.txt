@@ -1,0 +1,12 @@
+is the entire family caught?
+True -> don't include
+False -> include all members of the family in the search
+
+is the family a mega and is the hundo obtained?
+True -> don't include
+False -> include all members of the family with the preferred gender in the search
+
+mythicals should not be included in the search
+
+every single pokemon + region + form has it's one unique family
+every single pokemon + region + form that evolves from  the base, belongs to that family
