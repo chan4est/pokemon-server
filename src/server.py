@@ -10,7 +10,7 @@ pokemon_names = None
 
 class PokemonDatabase():
     def __init__(self) -> None:
-        self.pokemon_names = []
+        self.pokemon_names_and_types = []
         self.pokemon_forms = []
         self.pokemon_array = []
         self.pokemon_lines = {}
@@ -44,7 +44,7 @@ class PokemonDatabase():
         ]
 
         for language in self.languages:
-            self.initialize_pokemon_names(language)
+            self.initialize_pokemon_names_and_types(language)
         
         self.initialize_pokemon_lines()
 
@@ -59,15 +59,6 @@ class PokemonDatabase():
         self.inject_go_keywords()
 
         self.inject_pokemon_lines()
-
-        self.inject_pokemon_types()
-    
-    def __get_pokemon_types(self, EN_name_lower: str, nat_dex_number: int) -> None:
-        None
-
-    def inject_pokemon_types(self) -> None:
-        for pokemon in self.pokemon_array:
-            pokemon["types"] = self.__get_pokemon_types(pokemon["EN_name"], pokemon["nat_dex_number"])
 
     def inject_pokemon_lines(self) -> None:
         for pokemon in self.pokemon_array:
@@ -185,14 +176,53 @@ class PokemonDatabase():
                 else: ## Hack to get around Megas that have regional forms (ex. Raichu)
                     region = self.__get_pokemon_region(pokemon["nat_dex_number"])
             pokemon["region_name"] = region
+
+    def __has_new_types(self, form: dict) -> bool:
+        return "typed_forms" in form
+
+    def __is_dex_number_female_gigantamax_match(self, form: dict, nat_dex_number: int | None) -> bool:
+        return nat_dex_number and (form["suffix"] == "f" or form["suffix"] == 'gigantamax') and nat_dex_number in form["members"] 
+
+    def __is_dex_number_dex_match(self, form: dict, nat_dex_number: int) -> bool:
+        return nat_dex_number in form["dex_number"]
     
-    def __find_forms(self, forms: list[dict], EN_name_lower: str, nat_dex_number: int | None = None) -> list[str]:
-        additional_form_names = []
+    def __is_member_name_match(self, form: dict, EN_name_lower: bool) -> bool:
+        return EN_name_lower in form["members"]
+
+    def __is_regional_or_mega_form_search(self, form: str, nat_dex_number: int | None) -> bool:
+        regions = ["alolan", "galarian", "hisuian", "paldean"]
+        return nat_dex_number and "suffix" in form and (form["suffix"] in regions or "mega" in form["suffix"])
+
+    def __find_forms(self, forms: list[dict], EN_name_lower: str, default_types: list[str] | None = None, nat_dex_number: int | None = None) -> list[dict]:
+        additional_forms = []
         for form in forms:
-            if (nat_dex_number and nat_dex_number in form["members"]) or EN_name_lower in form["members"]:
-                for sfx in form["suffix"]:
-                    additional_form_names.append("{0}-{1}".format(EN_name_lower, sfx))
-        return additional_form_names 
+            if self.__is_member_name_match(form, EN_name_lower) and self.__has_new_types(form):
+                for typed_form in form["typed_forms"]:
+                    additional_forms.append({
+                        "name": "{0}-{1}".format(EN_name_lower, typed_form["suffix"]),
+                        "types": typed_form["types"]
+                    })
+            elif self.__is_member_name_match(form, EN_name_lower) and not self.__has_new_types(form):
+                for suffix in form["suffix"]:
+                    additional_forms.append({
+                        "name": "{0}-{1}".format(EN_name_lower, suffix),
+                        "types": default_types
+                    })
+            elif self.__is_dex_number_female_gigantamax_match(form, nat_dex_number):
+                additional_forms.append({
+                    "name": "{0}-{1}".format(EN_name_lower, form["suffix"]),
+                    "types": default_types
+                })
+            elif self.__is_regional_or_mega_form_search(form, nat_dex_number):
+                for member in form["members"]:
+                    if self.__is_dex_number_dex_match(member, nat_dex_number):
+                        additional_forms.append({
+                            "name": "{0}-{1}".format(EN_name_lower, form["suffix"]),
+                            "types": member["types"]
+                        })
+            else:
+                None
+        return additional_forms 
 
     def inject_pokemon_images(self) -> None:
         for pokemon in self.pokemon_array:
@@ -206,108 +236,271 @@ class PokemonDatabase():
             pokemon_dict["form_id"] = i
             self.pokemon_array.append(pokemon_dict)
 
-    def get_named_specific_forms(self, EN_name_lower: str) -> list[str]:
+    def get_fully_named_forms(self, EN_name_lower: str, default_types: list[str]) -> list[dict]:
         ## TODO: Remember to think of 'search terms' vs 'forms'. None of the below can be searched.
         forms = [
             {"members": ["unown"], "suffix": ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "qm", "em"]},
             {"members": ["deoxys"], "suffix": ["normal", "attack", "defense", "speed"]},
-            {"members": ["burmy", "wormadam"], "suffix": ["plant", "sandy", "trash"]},
+            {"members": ["burmy"], "suffix": ["plant", "sandy", "trash"]},
+            {
+                "members": ["wormadam"], "typed_forms": [
+                    {"suffix": "plant", "types": ["bug", "grass"]}, 
+                    {"suffix": "sandy", "types": ["bug", "ground"]},
+                    {"suffix": "trash", "types": ["bug", "steel"]}
+                ]
+            },
             {"members": ["cherrim"], "suffix": ["overcast", "sunshine"]},
             {"members": ["shellos", "gastrodon"], "suffix": ["west-sea", "east-sea"]},
             {"members": ["giratina"], "suffix": ["altered"]},
             {"members": ["dialga", "palkia", "giritina"], "suffix": ["origin"]},
-            {"members": ["shaymin"], "suffix": ["land", "sky"]},
-            {"members": ["arceus", "silvally"], "suffix": ["normal", "fighting", "flying", "poison", "ground", "rock", "bug", "ghost", "steel", "fire", "water", "grass", "electric", "psychic", "ice", "dragon", "dark", "fairy"]},
+            {
+                "members": ["shaymin"], "typed_forms": [
+                    {"suffix": "land", "types": ["grass"]}, 
+                    {"suffix": "sky", "types": ["grass", "flying"]}
+                ]
+            },
             {"members": ["basculin"], "suffix": ["red-striped", "blue-striped", "white-striped"]},
-            {"members": ["darmanitan"], "suffix":["standard", "zen", "galarian-standard", "galarian-zen"]}, ## hack
+            {
+                "members": ["darmanitan"], "typed_forms": [
+                    {"suffix": "standard", "types": ["fire"]}, 
+                    {"suffix": "zen", "types": ["fire", "psychic"]},
+                    {"suffix": "galarian-standard", "types": ["ice"]},
+                    {"suffix": "galarian-zen", "types": ["ice", "fire"]}
+                ]
+            },
             {"members": ["deerling", "sawsbuck"], "suffix": ["sprint", "summer", "autumn", "winter",]},
             {"members": ["thunderus", "tornadus", "landorus", "enamorus"], "suffix": ["incarnate", "therian"]},
             {"members": ["keldeo"], "suffix": ["ordinary", "resolute"]},
             {"members": ["vivillon"], "suffix": ["meadow", "icy-snow", "polar", "tundra", "continental", "garden", "elegant", "modern", "marine", "achipelago", "high-planes", "sandstorm", "river", "monsoon", "savanna", "sun", "ocean", "jungle", "fancy", "poke-ball"]},
             {"members": ["flabébé", "floette", "florges"], "suffix": ["red", "yellow", "orange", "blue", "white"]},
-            # {"members": ["floette"], "suffix": ["eternal"]}, ## TODO: double check this mega naming when it's out, is it floette-mega, or floette-eternal-mega?
+            {"members": ["floette"], "suffix": ["eternal"]}, ## TODO: double check this mega naming when it's out, is it floette-mega, or floette-eternal-mega?
             {"members": ["furfrou"], "suffix": ["natural", "heart", "star", "diamond", "debutante", "matron", "dandy", "la-reine", "kabuki", "pharoh"]},
             {"members": ["pumpkaboo", "gourgeist"], "suffix": ["medium", "small", "large", "jumbo"]},
             {"members": ["zygarde"], "suffix": ["50", "10", "complete"]},
-            {"members": ["hoopa"], "suffix": ["confined", "unbound"]},
-            {"members": ["oricorio"], "suffix": ["baile", "pom-pom", "pau", "sensu"]},
+            {
+                "members": ["hoopa"], "typed_forms": [
+                    {"suffix": "confined", "types": ["psychic", "ghost"]}, 
+                    {"suffix": "unbound", "types": ["psychic", "dark"]}
+                ]
+            },
+            {
+                "members": ["oricorio"], "typed_forms": [
+                    {"suffix": "baile", "types": ["fire", "flying"]}, 
+                    {"suffix": "pom-pom", "types": ["electric", "flying"]},
+                    {"suffix": "pau", "types": ["psychic", "flying"]},
+                    {"suffix": "sensu", "types": ["ghost", "flying"]}
+                ]
+            },
             {"members": ["lycanroc"], "suffix": ["midday", "midnight", "dusk"]},
             {"members": ["minior"], "suffix": ["meteor", "red-core", "orange-core", "yellow-core", "green-core", "blue-core", "indigo-core", "violet-core"]},
             {"members": ["toxtricity"], "suffix": ["amped", "low-key"]},
-            {"members": ["zacian", "zamazenta"], "suffix": ["hero", "crowned"]},
-            {"members": ["urshifu"], "suffix": ["single-strike", "rapid-strike", "single-strike-gigantamax", "rapid-strike-gigantamax"]}, ## hack
+            {
+                "members": ["zacian"], "typed_forms": [
+                    {"suffix": "hero", "types": ["fairy"]}, 
+                    {"suffix": "crowned", "types": ["fairy", "steel"]}
+                ]
+            },
+            {
+                "members": ["zamazenta"], "typed_forms": [
+                    {"suffix": "hero", "types": ["fighting"]}, 
+                    {"suffix": "crowned", "types": ["fighting", "steel"]}
+                ]
+            },
+            {
+                "members": ["urshifu"], "typed_forms": [
+                    {"suffix": "single-strike", "types": ["fighting", "dark"]}, 
+                    {"suffix": "rapid-strike", "types": ["fighting", "water"]},
+                    {"suffix": "single-strike-gigantamax", "types": ["fighting", "flying"]},
+                    {"suffix": "rapid-strike-gigantamax", "types": ["fighting", "flying"]}
+                ]
+            },
             {"members": ["maushold"], "suffix": ["family4", "family3"]},
             {"members": ["squawkabilly"], "suffix": ["green-plumage", "blue-plumage", "yellow-plumage", "white-plumage"]},
             {"members": ["tatsugiri"], "suffix": ["curly", "droopy", "stretchy", "curly-mega", "droopy-mega", "stretchy-mega"]},
             {"members": ["dudunsparce"], "suffix": ["two-segment", "three-segment"]},
             {"members": ["gimmighoul"], "suffix": ["chest", "roaming"]},
             {"members": ["poltchageist", "sinistcha"], "suffix": ["artistan"]},
-            {"members": ["ogerpon"], "suffix": ["teal", "cornerstone", "hearthflame", "wellspring"]},
+            {
+                "members": ["ogerpon"], "typed_forms": [
+                    {"suffix": "teal", "types": ["grass"]}, 
+                    {"suffix": "cornerstone", "types": ["grass", "water"]},
+                    {"suffix": "hearthflame", "types": ["grass", "fire"]},
+                    {"suffix": "wellspring", "types": ["grass", "rock"]}
+                ]
+            },
             {"members": ["meowstic", "indeedee", "basculegion", "oinkologne"], "suffix": ["male", "female"]}, ## Hack since HOME considers these different forms
             ## GO exclusive
             {"members": ["spinda"], "suffix": ["01", "02", "03", "04", "05", "06", "07", "08", "09"]},
             ## Main line games/battle only forms
-            # {"members": ["meloetta"], "suffix": ["aria", "pirouette"]},
+            {
+                "members": ["meloetta"],  "typed_forms": [
+                    {"suffix": "aria", "types": ["normal", "psychic"]}, 
+                    {"suffix": "pirouette", "types": ["normal", "fighting"]},
+                ]
+            },
             # {"members": ["minior"], "suffix": ["meteor"]},
             ## Battle only forms Xerneas, Mimiyku, Porpeko, another Gmax Tox, Iceque, Eternamax, Stellar and Terastral, School, Gulping, Gorging, Hero, missing 7 forms...
         ]
 
-        return self.__find_forms(forms, EN_name_lower)
+        return self.__find_forms(forms, EN_name_lower, default_types)
     
-    def get_unnamed_specific_forms(self, EN_name_lower: str) -> list[str]:
+    def get_post_base_named_forms(self, EN_name_lower: str, default_types: list[str]) -> list[dict]:
         ## All the Pokemon who don't have names for their 'default' forms
         forms = [
-            {"members": ["tauros"], "suffix": ["paldean-combat", "paldean-blaze", "paldean-aqua"]}, ## hack
-            {"members": ["castform"], "suffix": ["sunny", "rainy", "snowy"]},
-            {"members": ["rotom"], "suffix": ["heat", "wash", "frost", "fan", "mow"]},
+            {
+                "members": ["tauros"], "typed_forms": [
+                    {"suffix": "paldean-combat", "types": ["fighting"]},
+                    {"suffix": "paldean-blaze", "types": ["fighting", "fire"]},
+                    {"suffix": "paldean-aqua", "types": ["fighting", "water"]}
+                ]
+            },
+            {
+                "members": ["castform"], "typed_forms": [
+                    {"suffix": "sunny", "types": ["fire"]},
+                    {"suffix": "rainy", "types": ["water"]},
+                    {"suffix": "snowy", "types": ["ice"]}
+                ]
+            },
+            {
+                "members": ["rotom"], "typed_forms": [
+                    {"suffix": "heat", "types": ["electric", "fire"]},
+                    {"suffix": "wash", "types": ["electric", "water"]},
+                    {"suffix": "frost", "types": ["electric", "ice"]},
+                    {"suffix": "fan", "types": ["electric", "flying"]},
+                    {"suffix": "mow", "types": ["electric", "grass"]}
+                ]
+            },
             {"members": ["kyurem"], "suffix": ["white", "black"]},
             {"members": ["genesect"], "suffix": ["douse", "shock", "burn", "chill"]},
             {"members": ["greninja"], "suffix": ["ash"]},
             {"members": ["rockruff"], "suffix": ["own-tempo"]}, ## TODO: POGO is named 'Dusk'
-            {"members": ["necrozma"], "suffix": ["dusk-mane", "dawn-wings", "ultra"]},
-            {"members": ["magearna"], "suffix": ["original-color"]}, ## TODO: double check this mega naming when it's out, is it magearna-original-color-mega?
+            {
+                "members": ["necrozma"], "typed_forms": [
+                    {"suffix": "dusk-mane", "types": ["psychic", "steel"]},
+                    {"suffix": "dawn-wings", "types":  ["psychic", "ghost"]},
+                    {"suffix": "ultra", "types": ["psychic", "dragon"]}
+                ]
+            },
+            {"members": ["magearna"], "suffix": ["original", "original-mega"]}, ## TODO: double check this mega naming when it's out
             {"members": ["sinistea", "polteageist"], "suffix": ["antique"]},
             {"members": ["zarude"], "suffix": ["dada"]},
-            {"members": ["calyrex"], "suffix": ["ice-rider", "shadow-rider"]},
+            {
+                "members": ["calyrex"], "typed_forms": [
+                    {"suffix": "ice-rider", "types": ["psychic", "ice"]},
+                    {"suffix": "shadow-rider", "types":  ["psychic", "ghost"]}
+                ]
+            },
             {"members": ["ursaluna"], "suffix": ["bloodmoon"]},
             ## Main line games exclusive
             # {"members": ["pikachu"], "suffix": ["original-cap", "hoenn-cap", "sinnoh-cap", "unova-cap", "kalos-cap", "alola-cap", "partner-cap", "world-cap"}
         ]
 
-        return self.__find_forms(forms, EN_name_lower)
+        return self.__find_forms(forms, EN_name_lower, default_types)
 
-    def get_alcremie_forms(self) -> list[str]:
+    def get_arceus_silvally_forms(self, EN_name_lower: str) -> list[dict]:
+        types = ["normal", "fighting", "flying", "poison", "ground", "rock", "bug", "ghost", "steel", "fire", "water", "grass", "electric", "psychic", "ice", "dragon", "dark", "fairy"]
+
+        arceus_silvally_forms = []
+        for type in types:
+            arceus_silvally_forms.append({
+                "name": "{0}-{1}".format(EN_name_lower, type),
+                "types": [type]
+            })
+
+        return arceus_silvally_forms
+
+    def get_alcremie_forms(self) -> list[dict]:
         creams = ["vanilla-cream", "ruby-cream", "matcha-cream", "mint-cream", "lemon-cream", "salted-cream", "ruby-swirl", "caramel-swirl", "rainbow-swirl"]
         sweets = ["strawberry", "blueberry", "heart", "star", "clover", "flower", "ribbon"]
-        
-        alcremie_form_names = []
+
+        alcremie_forms = []
         for cream in creams:
             for sweet in sweets:
-                    alcremie_form_names.append("alcremie-{0}-{1}".format(cream, sweet))
+                alcremie_forms.append({
+                    "name": "alcremie-{0}-{1}".format(cream, sweet),
+                    "types": ["fairy"]
+                })
 
-        return alcremie_form_names
+        return alcremie_forms
 
-    def get_female_and_regional_forms(self, EN_name_lower: str, nat_dex_number: int) -> list[str]:
+    def get_female_and_regional_forms(self, EN_name_lower: str, default_types: list[str], nat_dex_number: int) -> list[dict]:
         ## https://bulbapedia.bulbagarden.net/wiki/List_of_Pok%C3%A9mon_with_gender_differences
         ## No Meowstic (678), Indeedee (876), Basculegion (902), Oinkologne (916) because HOME considers them different forms
-        female_forms = {"suffix": ["f"], "members": [3, 12, 19, 20, 25, 26, 41, 42, 44, 45, 64, 65, 84, 85, 97, 111, 112, 118, 119, 123, 129, 130, 133, 154, \
+        female_forms = {"suffix": "f", "members": [3, 12, 19, 20, 25, 26, 41, 42, 44, 45, 64, 65, 84, 85, 97, 111, 112, 118, 119, 123, 129, 130, 133, 154, \
             165, 166, 178, 185, 186, 190, 194, 195, 198, 202, 203, 207, 208, 212, 214, 215, 215, 217, 221, 224, 229, 232, 255, 256, 257, 267, 269, 272, 274, \
             275, 307, 308, 315, 316, 317, 322, 323, 332, 350, 369, 396, 397, 398, 399, 400, 401, 402, 403, 404, 405, 407, 415, 417, 418, 419, 424, 443, 444, \
             445, 449, 450, 453, 454, 456, 457, 459, 460, 461, 464, 465, 473, 521, 592, 593, 668]}
 
         ## https://www.serebii.net/sunmoon/alolaforms.shtml
-        alolan_forms = {"suffix": ["alolan"], "members": [19, 20, 26, 27, 28, 37, 38, 50, 51, 52, 53, 74, 75, 76, 88, 89, 103, 105]}
+        alolan_forms = {
+            "suffix": "alolan", 
+            "members": [
+                {"dex_number": [19, 20], "types": ["dark", "normal"]},
+                {"dex_number": [26], "types": ["electric", "psychic"]},
+                {"dex_number": [27, 28], "types": ["ice", "steel"]},
+                {"dex_number": [37], "types": ["ice"]},
+                {"dex_number": [38], "types": ["ice", "fairy"]},
+                {"dex_number": [50, 51], "types": ["ground", "steel"]},
+                {"dex_number": [52, 53], "types": ["dark"]},
+                {"dex_number": [74, 75, 76], "types": ["rock", "electric"]},
+                {"dex_number": [88, 89], "types": ["poison", "dark"]},
+                {"dex_number": [103], "types": ["grass", "dragon"]},
+                {"dex_number": [105], "types": ["fire", "ghost"]}
+            ]
+        }
 
         ## https://www.serebii.net/swordshield/galarianforms.shtml
         ## No Darmanitan (555) because it has forms
-        galarian_forms = {"suffix": ["galarian"], "members": [52, 77, 78, 79, 80, 83, 110, 122, 144, 145, 146, 199, 222, 263, 264, 554, 562, 618]}
+        galarian_forms = {
+            "suffix": "galarian", 
+            "members": [
+                {"dex_number": [52], "types": ["steel"]},
+                {"dex_number": [77], "types": ["psychic"]},
+                {"dex_number": [78], "types": ["psychic", "fairy"]},
+                {"dex_number": [79], "types": ["psychic"]},
+                {"dex_number": [80], "types": ["poison", "psychic"]},
+                {"dex_number": [83], "types": ["fighting"]},
+                {"dex_number": [110], "types": ["poison", "fairy"]},
+                {"dex_number": [122], "types": ["ice", "psychic"]},
+                {"dex_number": [144], "types": ["psychic", "flying"]},
+                {"dex_number": [145], "types": ["fighting", "flying"]},
+                {"dex_number": [146], "types": ["dark", "flying"]},
+                {"dex_number": [199], "types": ["poison", "psychic"]},
+                {"dex_number": [222], "types": ["ghost"]},
+                {"dex_number": [263, 264], "types": ["dark", "normal"]},
+                {"dex_number": [554], "types": ["ice"]},
+                {"dex_number": [562], "types": ["ground", "ghost"]},
+                {"dex_number": [618], "types": ["ground", "steel"]}
+            ]    
+        }
 
         ## https://www.serebii.net/legendsarceus/hisuianforms.shtml
-        hisuian_forms = {"suffix": ["hisuian"], "members": [58, 89, 100, 101, 157, 211, 215, 503, 549, 570, 571, 628, 705, 706, 713, 724]}
+        hisuian_forms = {
+            "suffix": "hisuian",
+            "members": [
+                {"dex_number": [58], "types": ["fire", "rock"]},
+                {"dex_number": [100, 101], "types": ["electric", "grass"]},
+                {"dex_number": [157], "types": ["fire", "ghost"]},
+                {"dex_number": [211], "types": ["dark", "poison"]},
+                {"dex_number": [215], "types": ["fighting", "poison"]},
+                {"dex_number": [503], "types": ["water", "dark"]},
+                {"dex_number": [549], "types": ["grass", "fighting"]},
+                {"dex_number": [570, 571], "types": ["normal", "ghost"]},
+                {"dex_number": [628], "types": ["psychic", "flying"]},
+                {"dex_number": [705, 706], "types": ["steel", "dragon"]},
+                {"dex_number": [713], "types": ["ice", "rock"]},
+                {"dex_number": [724], "types": ["grass", "fighting"]},
+            ]
+        }
 
         ## https://www.serebii.net/scarletviolet/paldeanforms.shtml
         ## No Tauros (128) because it has forms
-        paldean_forms = {"suffix": ["paldean"], "members": [194]}
+        paldean_forms = {
+            "suffix": "paldean", 
+            "members": [
+                {"dex_number": [194], "types": ["poison", "ground"]},
+            ]
+        }
 
         forms = [
             female_forms,
@@ -317,47 +510,182 @@ class PokemonDatabase():
             paldean_forms
         ]
 
-        return self.__find_forms(forms, EN_name_lower, nat_dex_number)
+        return self.__find_forms(forms, EN_name_lower, default_types, nat_dex_number)
 
-    def get_gigantamax_forms(self, EN_name_lower: str, nat_dex_number: int) -> list[str]:
+    def get_gigantamax_forms(self, EN_name_lower: str, default_types: list[str], nat_dex_number: int) -> list[str]:
         ## https://www.serebii.net/swordshield/gigantamax.shtml
         ## No Urshifu (892) because it has forms
-        gigantamax_forms_swsh = {"suffix": ["gigantamax"], "members": [3, 6, 9, 12, 25, 52, 68, 94, 99, 131, 133, 143, 569, 809, 812, 815, 818, 823, 826, \
+        gigantamax_forms_swsh = {"suffix": "gigantamax", "members": [3, 6, 9, 12, 25, 52, 68, 94, 99, 131, 133, 143, 569, 809, 812, 815, 818, 823, 826, \
                 834, 839, 841, 842, 844, 849, 851, 858, 861, 869, 879, 884]}
 
         forms = [
             gigantamax_forms_swsh
         ]
 
-        return self.__find_forms(forms, EN_name_lower, nat_dex_number)
+        return self.__find_forms(forms, EN_name_lower, default_types, nat_dex_number)
 
     def get_mega_forms(self, EN_name_lower: str, nat_dex_number: int) -> list[str]:
-        ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Pok%C3%A9mon_X_and_Y
-        mega_forms_xy = {"suffix": ["mega"], "members": [3, 9, 65, 94, 115, 127, 130, 142, 181, 212, 214, 229, 248, 257, \
-            282, 303, 306, 308, 310, 354, 359, 380, 381, 445, 448, 460]}
+        ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Pok%C3%A9mon_X_and_Y        
+        mega_forms_xy = {
+            "suffix": "mega",
+            "members": [
+                {"dex_number": [3], "types": ["grass", "poison"]},
+                {"dex_number": [9], "types": ["water"]},
+                {"dex_number": [65], "types": ["psychic"]},
+                {"dex_number": [94], "types": ["ghost", "poison"]},
+                {"dex_number": [115], "types": ["normal"]},
+                {"dex_number": [127], "types": ["bug", "flying"]},
+                {"dex_number": [130], "types": ["water", "dark"]},
+                {"dex_number": [142], "types": ["rock", "flying"]},
+                {"dex_number": [181], "types": ["electric", "dragon"]},
+                {"dex_number": [212], "types": ["bug", "steel"]},
+                {"dex_number": [214], "types": ["bug", "fighting"]},
+                {"dex_number": [229], "types": ["dark", "fire"]},
+                {"dex_number": [248], "types": ["rock", "dark"]},
+                {"dex_number": [257], "types": ["fire", "fighting"]},
+                {"dex_number": [282], "types": ["psychic", "fairy"]},
+                {"dex_number": [303], "types": ["steel", "fairy"]},
+                {"dex_number": [306], "types": ["steel"]},
+                {"dex_number": [308], "types": ["fighting", "psychic"]},
+                {"dex_number": [310], "types": ["electric"]},
+                {"dex_number": [354], "types": ["ghost"]},
+                {"dex_number": [359], "types": ["dark"]},
+                {"dex_number": [380], "types": ["dragon", "psychic"]},
+                {"dex_number": [381], "types": ["dragon", "psychic"]},
+                {"dex_number": [445], "types": ["dragon", "ground"]},
+                {"dex_number": [448], "types": ["fighting", "steel"]},
+                {"dex_number": [460], "types": ["grass", "ice"]}
+            ]
+        }
 
         ## split off because img-search suffix is different
-        mega_xy_x = {"suffix": ["mega-x"], "members": [6, 150]}
-        mega_xy_y = {"suffix": ["mega-y"], "members": [6, 150]}
+        mega_xy_x = {
+            "suffix": "mega-x",
+            "members": [
+                {"dex_number": [6], "types": ["fire", "dragon"]},
+                {"dex_number": [150], "types": ["psychic", "fighting"]}
+            ]
+        }
+
+        mega_xy_y = {
+            "suffix": "mega-y",
+            "members": [
+                {"dex_number": [6], "types": ["fire", "flying"]},
+                {"dex_number": [150], "types": ["psychic"]}
+            ]
+        }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Pok%C3%A9mon_Omega_Ruby_and_Alpha_Sapphire
-        mega_forms_oras = {"suffix": ["mega"], "members": [15, 18, 80, 208, 254, 260, 302, 319, 323, 334, 362, 373, 376, 384, 428, 475, 531, 719]}
+        mega_forms_oras = {
+            "suffix": "mega",
+            "members": [
+                {"dex_number": [15], "types": ["bug", "poison"]},
+                {"dex_number": [18], "types": ["normal", "flying"]},
+                {"dex_number": [80], "types": ["water", "psychic"]},
+                {"dex_number": [208], "types": ["steel", "ground"]},
+                {"dex_number": [254], "types": ["grass", "dragon"]},
+                {"dex_number": [260], "types": ["water", "ground"]},
+                {"dex_number": [302], "types": ["dark", "ghost"]},
+                {"dex_number": [319], "types": ["water", "dark"]},
+                {"dex_number": [323], "types": ["fire", "ground"]},
+                {"dex_number": [334], "types": ["dragon", "fairy"]},
+                {"dex_number": [362], "types": ["ice"]},
+                {"dex_number": [373], "types": ["dragon", "flying"]},
+                {"dex_number": [376], "types": ["steel", "psychic"]},
+                {"dex_number": [384], "types": ["dragon", "flying"]},
+                {"dex_number": [428], "types": ["normal", "fighting"]},
+                {"dex_number": [475], "types": ["psychic", "fighting"]},
+                {"dex_number": [531], "types": ["normal", "fairy"]},
+                {"dex_number": [719], "types": ["rock", "fairy"]}
+            ]
+        }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Primal_Reversion#Pok%C3%A9mon_capable_of_Primal_Reversion
-        primal_reversion = {"suffix": ["primal"], "members": [382, 383]}
+        primal_reversion = {
+            "suffix": "primal",
+            "members": [
+                {"dex_number": [382], "types": ["water"]},
+                {"dex_number": [383], "types": ["ground", "fire"]}
+            ]
+        }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Pok%C3%A9mon_Legends:_Z-A
-        mega_za = {"suffix": ["mega"], "members": [36, 71, 121, 149, 154, 160, 227, 478, 500, 530, 545, 560, 604, 609, 652, \
-            655, 658, 668, 670, 687, 689, 691, 701, 718, 780, 870]}
+        ## No Floeete (670) because it has a form
+        mega_za = {
+            "suffix": "mega",
+            "members": [
+                {"dex_number": [36], "types": ["fairy", "flying"]},
+                {"dex_number": [71], "types": ["grass", "poison"]},
+                {"dex_number": [121], "types": ["water", "psychic"]},
+                {"dex_number": [149], "types": ["dragon", "flying"]},
+                {"dex_number": [154], "types": ["grass", "fairy"]},
+                {"dex_number": [160], "types": ["water", "dragon"]},
+                {"dex_number": [227], "types": ["steel", "flying"]},
+                {"dex_number": [478], "types": ["ice", "ghost"]},
+                {"dex_number": [500], "types": ["fire", "fighting"]},
+                {"dex_number": [530], "types": ["ground", "steel"]},
+                {"dex_number": [545], "types": ["bug", "poison"]},
+                {"dex_number": [560], "types": ["dark", "fighting"]},
+                {"dex_number": [604], "types": ["electric"]},
+                {"dex_number": [609], "types": ["ghost", "fire"]},
+                {"dex_number": [652], "types": ["grass", "fighting"]},
+                {"dex_number": [655], "types": ["fire", "psychic"]},
+                {"dex_number": [658], "types": ["water", "dark"]},
+                {"dex_number": [668], "types": ["fire", "normal"]},
+                {"dex_number": [687], "types": ["dark", "psychic"]},
+                {"dex_number": [689], "types": ["rock", "fighting"]},
+                {"dex_number": [691], "types": ["poison", "dragon"]},
+                {"dex_number": [701], "types": ["fighting", "flying"]},
+                {"dex_number": [718], "types": ["dragon", "ground"]},
+                {"dex_number": [780], "types": ["normal", "dragon"]},
+                {"dex_number": [870], "types": ["fighting"]}
+            ]
+        }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Mega_Dimension
-        ## No Tatsugiri (978) because it has forms
-        mega_dim = {"suffix": ["mega"], "members": [358, 398, 485, 491, 623, 678, 740, 768, 801, 807, 952, 970, 998]}
+        ## No Tatsugiri (978) because it has named forms
+        mega_dim = {
+            "suffix": "mega",
+            "members": [
+                {"dex_number": [358], "types": ["psychic", "steel"]},
+                {"dex_number": [398], "types": ["fighting", "flying"]},
+                {"dex_number": [485], "types": ["fire", "steel"]},
+                {"dex_number": [491], "types": ["dark"]},
+                {"dex_number": [623], "types": ["ground", "ghost"]},
+                {"dex_number": [678], "types": ["psychic"]},
+                {"dex_number": [740], "types": ["fighting", "ice"]},
+                {"dex_number": [768], "types": ["bug", "steel"]},
+                {"dex_number": [801], "types": ["steel", "fairy"]},
+                {"dex_number": [807], "types": ["electric"]},
+                {"dex_number": [952], "types": ["grass", "fire"]},
+                {"dex_number": [970], "types": ["rock", "poison"]},
+                {"dex_number": [998], "types": ["dragon", "ice"]}
+            ]
+        }
 
         ## split off because img-search suffix is different
-        mega_dim_x = {"suffix": ["mega-x"], "members": [26]}
-        mega_dim_y = {"suffix": ["mega-y"], "members": [26]}
-        mega_dim_z = {"suffix": ["mega-z"], "members": [359, 445, 448]}
+        mega_dim_x = {
+            "suffix": "mega-x",
+            "members": [
+                {"dex_number": [26], "types": ["electric"]}
+            ]
+        }
+
+        mega_dim_y = {
+            "suffix": "mega-y",
+            "members": [
+                {"dex_number": [26], "types": ["electric"]}
+            ]
+        }
+
+        mega_dim_z = {
+            "suffix": "mega-z",
+            "members": [
+                {"dex_number": [359], "types": ["dark", "ghost"]},
+                {"dex_number": [445], "types": ["dragon"]},
+                {"dex_number": [448], "types": ["fighting", "steel"]}
+            ]
+        }
 
         forms = [
             mega_forms_xy,
@@ -372,21 +700,23 @@ class PokemonDatabase():
             mega_dim_z
         ]
 
-        return self.__find_forms(forms, EN_name_lower, nat_dex_number)
+        return self.__find_forms(forms, EN_name_lower, None, nat_dex_number)
     
     def __add_forms(self, pokemon: object, addiontal_forms: list, flag_orig_form: bool = False) -> None:
         for i, form in enumerate(addiontal_forms):
             new_form = copy.deepcopy(pokemon)
-            new_form["form"] = form
+            new_form["form"] = form["name"]
+            new_form["types"] = form["types"]
             new_form["is_orig_form"] = False
             if flag_orig_form and i == 0:
                 new_form["is_orig_form"] = True
             self.pokemon_forms.append(new_form)
 
     def initialize_pokemon_forms(self) -> None:
-        for pokemon in self.pokemon_names:
+        for pokemon in self.pokemon_names_and_types:
             pokemon_name_EN_lower = pokemon['name_EN'].lower()
             pokemon_nat_dex_number = pokemon['nat_dex_number']
+            pokemon_default_types = pokemon["types"]
         
             ## Fix Nidoran ♀
             if ("♀" in pokemon_name_EN_lower):
@@ -419,26 +749,31 @@ class PokemonDatabase():
             self.pokemon_forms.append(pokemon)
 
             ## Pokemon who have names for their 'default' forms
-            named_specific_forms = self.get_named_specific_forms(pokemon_name_EN_lower)
+            named_specific_forms = self.get_fully_named_forms(pokemon_name_EN_lower, pokemon_default_types)
             ## Get rid of the last form on there, because it's going to be superceeded
             if len(named_specific_forms) > 0:
                 self.pokemon_forms.pop()
             self.__add_forms(pokemon, named_specific_forms, flag_orig_form=True)
 
             ## Pokemon who DO NOT have names for their 'default' forms
-            unnamed_specific_forms = self.get_unnamed_specific_forms(pokemon_name_EN_lower)
+            unnamed_specific_forms = self.get_post_base_named_forms(pokemon_name_EN_lower, pokemon_default_types)
             self.__add_forms(pokemon, unnamed_specific_forms)
 
+            ## Special case for Arceus and Silvally since they have 18 forms
+            if pokemon_name_EN_lower == 'arceus' or pokemon_name_EN_lower == 'silvally':
+                arceus_silvally_forms = self.get_arceus_silvally_forms(pokemon_name_EN_lower)
+                self.__add_forms(pokemon, arceus_silvally_forms, flag_orig_form=True)
+
             ## Special case for Alcremie since it has 63 forms
-            if pokemon_name_EN_lower == 'alcremie':
+            if pokemon_name_EN_lower == "alcremie":
                 alcremie_forms = self.get_alcremie_forms()
                 self.__add_forms(pokemon, alcremie_forms, flag_orig_form=True)
-            
+    
             ## Grab all the non-specific forms
-            female_and_regional_forms = self.get_female_and_regional_forms(pokemon_name_EN_lower, pokemon_nat_dex_number)
+            female_and_regional_forms = self.get_female_and_regional_forms(pokemon_name_EN_lower, pokemon_default_types, pokemon_nat_dex_number)
             self.__add_forms(pokemon, female_and_regional_forms)
 
-            gigantamax_forms = self.get_gigantamax_forms(pokemon_name_EN_lower, pokemon_nat_dex_number)
+            gigantamax_forms = self.get_gigantamax_forms(pokemon_name_EN_lower, pokemon_default_types, pokemon_nat_dex_number)
             self.__add_forms(pokemon, gigantamax_forms)
 
             mega_forms = self.get_mega_forms(pokemon_name_EN_lower, pokemon_nat_dex_number)
@@ -473,7 +808,7 @@ class PokemonDatabase():
                 if in_main_content:
                     current_pokemon_line_set.add(pokemon_name)
 
-    def initialize_pokemon_names(self, language: dict) -> None:
+    def initialize_pokemon_names_and_types(self, language: dict) -> None:
         ## Fetching the names for each Pokemon in each langauge
         pokemon_html = requests.get(self.gen_bulba_url.format(language['name']))
         pokemon_html = html.unescape(pokemon_html.text)
@@ -482,15 +817,22 @@ class PokemonDatabase():
 
         current_pokemon_number = -1
         current_pokemon_name = ''
+        current_pokemon_types = []
+        skip_types = False
 
         for line in pokemon_html.splitlines():
             pokemon_number = re.findall('monospace">#(\\d*).*', line)
             pokemon_name = re.findall(language['searchregex'], line)
+            ## Only do the types regex finds in English. Save on computation
+            pokemon_type = None
+            if language['name'] == 'English':
+                pokemon_type = re.findall('\\(type\\)" title="(.\\w{1,8}) \\(type\\)', line)
+
             ## While scanning you've found a Pokemon
             if pokemon_number:
                 ## You found another Pokemon. Reset the variables. Extra check is in case the trivia (RU) has old names
                 if current_pokemon_number != -1 and len(current_language_pokemon_list) < current_pokemon_number:
-                    current_language_pokemon_list.append({"name": current_pokemon_name, "nat_dex_number": current_pokemon_number})
+                    current_language_pokemon_list.append({"name": current_pokemon_name, "nat_dex_number": current_pokemon_number, 'types': current_pokemon_types})
                     current_pokemon_name = ''
                 ## Set the number for the first Pokemon found and all subsequent ones AFTER a reset
                 current_pokemon_number = int(pokemon_number[0])
@@ -499,24 +841,34 @@ class PokemonDatabase():
                 ## Keep this check, since some langauges have their regex match older names side by side in the table
                 if current_pokemon_name == '':
                     current_pokemon_name = pokemon_name[0]
+                    skip_types = False
+                # You're on the same Pokemon but a different form (Regional, Legendary, etc.) Do not capture it's types
+                else:
+                    skip_types = True
+            ## Capture the types only for the original form
+            if pokemon_type and not skip_types:
+                current_pokemon_types.append(pokemon_type[0].lower())
 
         ## Make sure the last Pokemon is added in too!
-        current_language_pokemon_list.append({"name": current_pokemon_name, "nat_dex_number": current_pokemon_number})
+        current_language_pokemon_list.append({"name": current_pokemon_name, "nat_dex_number": current_pokemon_number, 'types': current_pokemon_types})
 
         for i in range(len(current_language_pokemon_list)):
             pokemon_name = current_language_pokemon_list[i]["name"]
             nat_dex_number = current_language_pokemon_list[i]["nat_dex_number"]
+            ## Filter out duplicate types just in case
+            english_types = list(set(current_language_pokemon_list[i]['types']))
             if language['name'] == 'English':
                 pokemon_data = {
                     "nat_dex_number": nat_dex_number,
                     "name_EN": pokemon_name,
+                    "types": ["type01", "type02"]
                 }
                 ## Set default to EN name since some langauges don't have proper translations
                 for language_i in self.languages:
                     pokemon_data['name_{}'.format(language_i['code'])] = pokemon_name
-                self.pokemon_names.append(pokemon_data)
+                self.pokemon_names_and_types.append(pokemon_data)
             else:
-                self.pokemon_names[nat_dex_number-1]['name_{}'.format(language['code'])] = pokemon_name
+                self.pokemon_names_and_types[nat_dex_number-1]['name_{}'.format(language['code'])] = pokemon_name
 
 @app.route('/pokemon/', methods=['GET'])
 def pokemon() -> list:
