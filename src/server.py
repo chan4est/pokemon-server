@@ -9,7 +9,10 @@ app = Flask(__name__)
 pokemon_names = None
 
 class PokemonDatabase():
-    def __init__(self) -> None:
+    def __init__(self) -> None:        
+        self.FIRST_POKEMON_EN_LOWER = "bulbasaur"
+        self.LAST_POKEMON_EN_LOWER = "pecharunt"
+
         self.pokemon_names_and_types = []
         self.pokemon_forms = []
         self.pokemon_array = []
@@ -63,7 +66,7 @@ class PokemonDatabase():
     def inject_pokemon_lines(self) -> None:
         for pokemon in self.pokemon_array:
             for line_name in self.pokemon_lines:
-                if pokemon["name_EN"] in self.pokemon_lines[line_name]:
+                if pokemon["name_EN"].lower() in self.pokemon_lines[line_name]:
                     pokemon["line"] = line_name
                     pokemon["family"] = copy.deepcopy(self.pokemon_lines[line_name])
     
@@ -233,7 +236,7 @@ class PokemonDatabase():
     def initalize_pokemon_array(self) -> None:
         for i, pokemon in enumerate(self.pokemon_forms):
             pokemon_dict = copy.deepcopy(pokemon)
-            pokemon_dict["form_id"] = i
+            pokemon_dict["form_id"] = i+1
             self.pokemon_array.append(pokemon_dict)
 
     def get_fully_named_forms(self, EN_name_lower: str, default_types: list[str]) -> list[dict]:
@@ -250,7 +253,7 @@ class PokemonDatabase():
                 ]
             },
             {"members": ["cherrim"], "suffix": ["overcast", "sunshine"]},
-            {"members": ["shellos", "gastrodon"], "suffix": ["west-sea", "east-sea"]},
+            {"members": ["shellos", "gastrodon"], "suffix": ["west", "east"]},
             {"members": ["giratina"], "suffix": ["altered"]},
             {"members": ["dialga", "palkia", "giritina"], "suffix": ["origin"]},
             {
@@ -268,14 +271,14 @@ class PokemonDatabase():
                     {"suffix": "galarian-zen", "types": ["ice", "fire"]}
                 ]
             },
-            {"members": ["deerling", "sawsbuck"], "suffix": ["sprint", "summer", "autumn", "winter",]},
+            {"members": ["deerling", "sawsbuck"], "suffix": ["spring", "summer", "autumn", "winter",]},
             {"members": ["thunderus", "tornadus", "landorus", "enamorus"], "suffix": ["incarnate", "therian"]},
             {"members": ["keldeo"], "suffix": ["ordinary", "resolute"]},
-            {"members": ["vivillon"], "suffix": ["meadow", "icy-snow", "polar", "tundra", "continental", "garden", "elegant", "modern", "marine", "achipelago", "high-planes", "sandstorm", "river", "monsoon", "savanna", "sun", "ocean", "jungle", "fancy", "poke-ball"]},
+            {"members": ["vivillon"], "suffix": ["meadow", "icy-snow", "polar", "tundra", "continental", "garden", "elegant", "modern", "marine", "archipelago", "high-plains", "sandstorm", "river", "monsoon", "savanna", "sun", "ocean", "jungle", "fancy", "poke-ball"]},
             {"members": ["flabébé", "floette", "florges"], "suffix": ["red", "yellow", "orange", "blue", "white"]},
-            {"members": ["floette"], "suffix": ["eternal"]}, ## TODO: double check this mega naming when it's out, is it floette-mega, or floette-eternal-mega?
-            {"members": ["furfrou"], "suffix": ["natural", "heart", "star", "diamond", "debutante", "matron", "dandy", "la-reine", "kabuki", "pharoh"]},
-            {"members": ["pumpkaboo", "gourgeist"], "suffix": ["medium", "small", "large", "jumbo"]},
+            {"members": ["floette"], "suffix": ["eternal", "eternal-mega"]}, ## TODO: double check this mega naming when it's out, is it floette-mega, or floette-eternal-mega?
+            {"members": ["furfrou"], "suffix": ["natural", "heart", "star", "diamond", "debutante", "matron", "dandy", "la-reine", "kabuki", "pharaoh"]},
+            {"members": ["pumpkaboo", "gourgeist"], "suffix": ["average", "small", "large", "super"]},
             {"members": ["zygarde"], "suffix": ["50", "10", "complete"]},
             {
                 "members": ["hoopa"], "typed_forms": [
@@ -315,11 +318,10 @@ class PokemonDatabase():
                 ]
             },
             {"members": ["maushold"], "suffix": ["family4", "family3"]},
-            {"members": ["squawkabilly"], "suffix": ["green-plumage", "blue-plumage", "yellow-plumage", "white-plumage"]},
+            {"members": ["squawkabilly"], "suffix": ["green", "blue", "yellow", "white"]},
             {"members": ["tatsugiri"], "suffix": ["curly", "droopy", "stretchy", "curly-mega", "droopy-mega", "stretchy-mega"]},
             {"members": ["dudunsparce"], "suffix": ["two-segment", "three-segment"]},
             {"members": ["gimmighoul"], "suffix": ["chest", "roaming"]},
-            {"members": ["poltchageist", "sinistcha"], "suffix": ["artistan"]},
             {
                 "members": ["ogerpon"], "typed_forms": [
                     {"suffix": "teal", "types": ["grass"]}, 
@@ -381,7 +383,7 @@ class PokemonDatabase():
                     {"suffix": "ultra", "types": ["psychic", "dragon"]}
                 ]
             },
-            {"members": ["magearna"], "suffix": ["original", "original-mega"]}, ## TODO: double check this mega naming when it's out
+            {"members": ["magearna"], "suffix": ["original", "mega", "original-mega"]}, ## TODO: double check this mega naming when it's out
             {"members": ["sinistea", "polteageist"], "suffix": ["antique"]},
             {"members": ["zarude"], "suffix": ["dada"]},
             {
@@ -391,6 +393,7 @@ class PokemonDatabase():
                 ]
             },
             {"members": ["ursaluna"], "suffix": ["bloodmoon"]},
+            {"members": ["poltchageist", "sinistcha"], "suffix": ["artisan"]},
             ## Main line games exclusive
             # {"members": ["pikachu"], "suffix": ["original-cap", "hoenn-cap", "sinnoh-cap", "unova-cap", "kalos-cap", "alola-cap", "partner-cap", "world-cap"}
         ]
@@ -411,7 +414,7 @@ class PokemonDatabase():
 
     def get_alcremie_forms(self) -> list[dict]:
         creams = ["vanilla-cream", "ruby-cream", "matcha-cream", "mint-cream", "lemon-cream", "salted-cream", "ruby-swirl", "caramel-swirl", "rainbow-swirl"]
-        sweets = ["strawberry", "blueberry", "heart", "star", "clover", "flower", "ribbon"]
+        sweets = ["strawberry", "berry", "love", "star", "clover", "flower", "ribbon"]
 
         alcremie_forms = []
         for cream in creams:
@@ -610,7 +613,7 @@ class PokemonDatabase():
         }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Pok%C3%A9mon_Legends:_Z-A
-        ## No Floeete (670) because it has a form
+        ## No Floeete (670) because it has a named form
         mega_za = {
             "suffix": "mega",
             "members": [
@@ -643,7 +646,7 @@ class PokemonDatabase():
         }
 
         ## https://bulbapedia.bulbagarden.net/wiki/Mega_Evolution#Introduced_in_Mega_Dimension
-        ## No Tatsugiri (978) because it has named forms
+        ## No Magearna (801) or Tatsugiri (978) because it has named forms
         mega_dim = {
             "suffix": "mega",
             "members": [
@@ -655,7 +658,6 @@ class PokemonDatabase():
                 {"dex_number": [678], "types": ["psychic"]},
                 {"dex_number": [740], "types": ["fighting", "ice"]},
                 {"dex_number": [768], "types": ["bug", "steel"]},
-                {"dex_number": [801], "types": ["steel", "fairy"]},
                 {"dex_number": [807], "types": ["electric"]},
                 {"dex_number": [952], "types": ["grass", "fire"]},
                 {"dex_number": [970], "types": ["rock", "poison"]},
@@ -731,7 +733,7 @@ class PokemonDatabase():
             elif (". " in pokemon_name_EN_lower):
                 pokemon_name_EN_lower = pokemon_name_EN_lower.replace(". ", "-")
             ## Fix Mime Jr.
-            elif (" Jr." in pokemon_name_EN_lower):
+            elif (" jr." in pokemon_name_EN_lower):
                 pokemon_name_EN_lower = pokemon_name_EN_lower.replace(" jr.", "-jr")
             ## Fix Flabébé
             elif ("é" in pokemon_name_EN_lower):
@@ -762,11 +764,13 @@ class PokemonDatabase():
             ## Special case for Arceus and Silvally since they have 18 forms
             if pokemon_name_EN_lower == 'arceus' or pokemon_name_EN_lower == 'silvally':
                 arceus_silvally_forms = self.get_arceus_silvally_forms(pokemon_name_EN_lower)
+                self.pokemon_forms.pop()
                 self.__add_forms(pokemon, arceus_silvally_forms, flag_orig_form=True)
 
             ## Special case for Alcremie since it has 63 forms
             if pokemon_name_EN_lower == "alcremie":
                 alcremie_forms = self.get_alcremie_forms()
+                self.pokemon_forms.pop()
                 self.__add_forms(pokemon, alcremie_forms, flag_orig_form=True)
     
             ## Grab all the non-specific forms
@@ -778,6 +782,12 @@ class PokemonDatabase():
 
             mega_forms = self.get_mega_forms(pokemon_name_EN_lower, pokemon_nat_dex_number)
             self.__add_forms(pokemon, mega_forms)
+
+    def __is_first_pokemon(self, EN_name_lower: str):
+        return EN_name_lower == self.FIRST_POKEMON_EN_LOWER
+
+    def __is_last_pokemon(self, EN_name_lower: str):
+        return EN_name_lower == self.LAST_POKEMON_EN_LOWER
 
     def initialize_pokemon_lines(self) -> None:
         in_main_content = False
@@ -802,11 +812,14 @@ class PokemonDatabase():
                     current_pokemon_line_set = set()
                 current_pokemon_line = pokemon_line_re_match[0]
             if pokemon_name_re_match:
-                pokemon_name = pokemon_name_re_match[0]
-                if pokemon_name == "Bulbasaur":
+                pokemon_name = pokemon_name_re_match[0].lower()
+                if self.__is_first_pokemon(pokemon_name):
                     in_main_content = True
                 if in_main_content:
-                    current_pokemon_line_set.add(pokemon_name)
+                   current_pokemon_line_set.add(pokemon_name)
+                   if self.__is_last_pokemon(pokemon_name):
+                        self.pokemon_lines[current_pokemon_line] = list(current_pokemon_line_set)
+                    
 
     def initialize_pokemon_names_and_types(self, language: dict) -> None:
         ## Fetching the names for each Pokemon in each langauge
@@ -834,6 +847,7 @@ class PokemonDatabase():
                 if current_pokemon_number != -1 and len(current_language_pokemon_list) < current_pokemon_number:
                     current_language_pokemon_list.append({"name": current_pokemon_name, "nat_dex_number": current_pokemon_number, 'types': current_pokemon_types})
                     current_pokemon_name = ''
+                    current_pokemon_types = []
                 ## Set the number for the first Pokemon found and all subsequent ones AFTER a reset
                 current_pokemon_number = int(pokemon_number[0])
             ## You found a name for that Pokemon a few lines down
@@ -861,7 +875,7 @@ class PokemonDatabase():
                 pokemon_data = {
                     "nat_dex_number": nat_dex_number,
                     "name_EN": pokemon_name,
-                    "types": ["type01", "type02"]
+                    "types": english_types
                 }
                 ## Set default to EN name since some langauges don't have proper translations
                 for language_i in self.languages:

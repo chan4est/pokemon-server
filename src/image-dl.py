@@ -1,4 +1,4 @@
-
+import json
 import requests
 import os
 
@@ -7,15 +7,23 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:91.0) Gecko/20100101 Firefox/91.0"
 }
 def download_image(img_url,i):
-    data_folder=##DATA FOLDER
+    data_folder="/mnt/d/Users/Chandler/Development/pokemon-server/images/"
+    
     try:
         res=requests.get(img_url,allow_redirects = True,headers=headers)
         img_bytes= requests.get(img_url).content # download bytes for a image
-        with open(os.path.join(data_folder,str(i+1)+".png"),"wb") as img_file:
+        with open(os.path.join(data_folder,str(i)+".png"),"wb") as img_file:
             img_file.write(img_bytes)
     except Exception as e:
         print(e)
 
 
-for i in range(len(list)):
-    download_image(list[i], i)
+if __name__ == "__main__":
+    # json_file = "/mnt/d/Users/Chandler/Development/pokemon-server/pokemon.json"
+    json_file = "/mnt/d/Users/Chandler/Development/pokemon-server/alt.json"
+    key = "image_home"
+    with open(json_file, "r") as f:
+        data = json.load(f)
+        for pokemon in data:
+            download_image(pokemon[key], pokemon["form_id"])
+            print(pokemon["form"], pokemon["form_id"])
